@@ -72,11 +72,10 @@ export function RegistrationForm() {
       // 1. Upload image to Supabase Storage
       const fileExtension = profileImageFile.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExtension}`;
-      const filePath = `profile_pictures/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
+      // The filePath is just the fileName now. Supabase client prepends the bucket name.
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('profile_pictures')
-        .upload(filePath, profileImageFile);
+        .upload(fileName, profileImageFile);
 
       if (uploadError) {
         throw uploadError;
@@ -85,7 +84,7 @@ export function RegistrationForm() {
       // 2. Get public URL
       const { data: urlData } = supabase.storage
         .from('profile_pictures')
-        .getPublicUrl(filePath);
+        .getPublicUrl(uploadData.path);
 
       if (!urlData) {
         throw new Error("No se pudo obtener la URL de la imagen.");
