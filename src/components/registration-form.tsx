@@ -24,6 +24,8 @@ import { FingerprintScanner } from "./fingerprint-scanner"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon, UserPlus } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 
 const formSchema = z.object({
   fullName: z.string().min(2, {
@@ -61,13 +63,19 @@ export function RegistrationForm() {
   }
 
   return (
-    <Card className="w-full max-w-2xl shadow-2xl">
-      <CardHeader className="text-center">
+    <Card className="w-full max-w-2xl shadow-2xl relative">
+       <Link href="/" passHref>
+          <Button variant="ghost" className="absolute top-4 left-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver
+          </Button>
+        </Link>
+      <CardHeader className="text-center pt-16">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
             <UserPlus className="h-8 w-8" />
         </div>
-        <CardTitle className="text-3xl font-bold font-headline">KaliAccess</CardTitle>
-        <CardDescription className="text-lg">New User Registration</CardDescription>
+        <CardTitle className="text-3xl font-bold font-headline">Registro de Nuevo Usuario</CardTitle>
+        <CardDescription className="text-lg">Complete el formulario para registrar un nuevo miembro</CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>

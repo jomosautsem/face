@@ -77,8 +77,8 @@ export function AccessControlPanel() {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) return 'expired';
-    if (diffDays <= 1) return 'expiring'; // "1 day left" is actually "expiring soon"
-    return 'current'; // More than 1 day
+    if (diffDays <= 1) return 'expiring';
+    return 'current';
   };
 
   const handleScan = () => {
@@ -125,7 +125,7 @@ export function AccessControlPanel() {
       const today = new Date();
       const endDate = currentUser.endDate;
       const diffTime = endDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
       switch (membershipStatus) {
           case 'current': return `Membresía activa. Vence en ${diffDays} días.`;
