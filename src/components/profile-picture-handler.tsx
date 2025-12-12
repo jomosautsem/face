@@ -25,11 +25,11 @@ export function ProfilePictureHandler() {
           videoRef.current.srcObject = stream;
         }
       } else {
-        console.error("getUserMedia not supported on this browser");
+        console.error("getUserMedia no es compatible en este navegador");
         setIsWebcamOpen(false);
       }
     } catch (error) {
-      console.error("Error accessing webcam:", error);
+      console.error("Error al acceder a la cámara:", error);
       setIsWebcamOpen(false); // Close dialog on error
     }
   }, []);
@@ -85,7 +85,7 @@ export function ProfilePictureHandler() {
   return (
     <div className="flex flex-col items-center gap-4">
       <Avatar className="h-32 w-32 border-4 border-muted">
-        <AvatarImage src={imageSrc ?? undefined} alt="Profile picture" />
+        <AvatarImage src={imageSrc ?? undefined} alt="Foto de perfil" />
         <AvatarFallback className="bg-secondary">
             {avatarPlaceholder && !imageSrc ? (
                  <Image src={avatarPlaceholder.imageUrl} alt={avatarPlaceholder.description} data-ai-hint={avatarPlaceholder.imageHint} width={128} height={128} className="object-cover" />
@@ -104,18 +104,18 @@ export function ProfilePictureHandler() {
       <div className="flex gap-2">
         <Button variant="outline" onClick={triggerFileUpload}>
           <Upload className="mr-2 h-4 w-4" />
-          Upload
+          Subir
         </Button>
         <Dialog open={isWebcamOpen} onOpenChange={setIsWebcamOpen}>
           <DialogTrigger asChild>
             <Button variant="outline">
               <Camera className="mr-2 h-4 w-4" />
-              Take Photo
+              Tomar Foto
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[625px]">
             <DialogHeader>
-              <DialogTitle>Webcam Capture</DialogTitle>
+              <DialogTitle>Captura con Webcam</DialogTitle>
             </DialogHeader>
             <div className="relative aspect-video w-full overflow-hidden rounded-md bg-black">
               <video ref={videoRef} autoPlay playsInline className="h-full w-full object-cover" />
@@ -124,7 +124,7 @@ export function ProfilePictureHandler() {
             <DialogFooter>
               <Button onClick={capturePhoto} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
                 <Camera className="mr-2 h-4 w-4" />
-                Capture
+                Capturar
               </Button>
             </DialogFooter>
           </DialogContent>

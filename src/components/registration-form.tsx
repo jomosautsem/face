@@ -4,7 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
+import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import React from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,21 +31,23 @@ import { ArrowLeft } from "lucide-react"
 
 const formSchema = z.object({
   fullName: z.string().min(2, {
-    message: "Full name must be at least 2 characters.",
+    message: "El nombre completo debe tener al menos 2 caracteres.",
   }),
   startDate: z.date({
-    required_error: "A start date is required.",
+    required_error: "La fecha de inicio es requerida.",
   }),
   endDate: z.date({
-    required_error: "An end date is required.",
+    required_error: "La fecha de fin es requerida.",
   }),
 }).refine((data) => data.endDate > data.startDate, {
-  message: "End date must be after start date.",
+  message: "La fecha de fin debe ser posterior a la fecha de inicio.",
   path: ["endDate"], 
 });
 
 export function RegistrationForm() {
   const { toast } = useToast();
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = React.useState(false);
+  const [isEndDatePickerOpen, setIsEndDatePickerOpen] = React.useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -55,8 +59,8 @@ export function RegistrationForm() {
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values)
     toast({
-      title: "Registration Successful!",
-      description: `Welcome, ${values.fullName}! Your registration is complete.`,
+      title: "¡Registro Exitoso!",
+      description: `¡Bienvenido, ${values.fullName}! Tu registro está completo.`,
       className: "bg-accent text-accent-foreground border-accent",
     })
     form.reset();
@@ -86,9 +90,9 @@ export function RegistrationForm() {
                 name="fullName"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Full Name</FormLabel>
+                    <FormLabel>Nombre Completo</FormLabel>
                     <FormControl>
-                        <Input placeholder="e.g. John Doe" {...field} />
+                        <Input placeholder="Ej. Juan Pérez" {...field} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -100,8 +104,8 @@ export function RegistrationForm() {
                         name="startDate"
                         render={({ field }) => (
                         <FormItem className="flex flex-col">
-                            <FormLabel>Membership Start Date</FormLabel>
-                            <Popover>
+                            <FormLabel>Fecha de Inicio de Membresía</FormLabel>
+                            <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
                                 <PopoverTrigger asChild>
                                     <FormControl>
                                         <Button
@@ -112,9 +116,9 @@ export function RegistrationForm() {
                                             )}
                                         >
                                             {field.value ? (
-                                                format(field.value, "PPP")
+                                                format(field.value, "PPP", { locale: es })
                                             ) : (
-                                                <span>Pick a date</span>
+                                                <span>Elige una fecha</span>
                                             )}
                                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                         </Button>
@@ -124,9 +128,13 @@ export function RegistrationForm() {
                                     <Calendar
                                         mode="single"
                                         selected={field.value}
-                                        onSelect={field.onChange}
+                                        onSelect={(date) => {
+                                            field.onChange(date);
+                                            setIsStartDatePickerOpen(false);
+                                        }}
                                         disabled={(date) => date < new Date("1900-01-01")}
                                         initialFocus
+                                        locale={es}
                                     />
                                 </PopoverContent>
                             </Popover>
@@ -139,8 +147,8 @@ export function RegistrationForm() {
                         name="endDate"
                         render={({ field }) => (
                         <FormItem className="flex flex-col">
-                            <FormLabel>Membership End Date</FormLabel>
-                             <Popover>
+                            <FormLabel>Fecha de Fin de Membresía</FormLabel>
+                             <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
                                 <PopoverTrigger asChild>
                                     <FormControl>
                                         <Button
@@ -151,9 +159,9 @@ export function RegistrationForm() {
                                             )}
                                         >
                                             {field.value ? (
-                                                format(field.value, "PPP")
+                                                format(field.value, "PPP", { locale: es })
                                             ) : (
-                                                <span>Pick a date</span>
+                                                <span>Elige una fecha</span>
                                             )}
                                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                         </Button>
@@ -163,9 +171,13 @@ export function RegistrationForm() {
                                     <Calendar
                                         mode="single"
                                         selected={field.value}
-                                        onSelect={field.onChange}
+                                        onSelect={(date) => {
+                                            field.onChange(date);
+                                            setIsEndDatePickerOpen(false);
+                                        }}
                                         disabled={(date) => date < (form.getValues("startDate") || new Date())}
                                         initialFocus
+                                        locale={es}
                                     />
                                 </PopoverContent>
                             </Popover>
@@ -186,7 +198,7 @@ export function RegistrationForm() {
 
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" size="lg">Register User</Button>
+            <Button type="submit" className="w-full" size="lg">Registrar Usuario</Button>
           </CardFooter>
         </form>
       </Form>

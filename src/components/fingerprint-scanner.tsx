@@ -45,10 +45,10 @@ export function FingerprintScanner() {
       </div>
       <div className="min-h-[40px]">
         <p className="text-sm text-muted-foreground">
-          {status === 'idle' && 'Place your finger on the scanner to begin.'}
-          {status === 'scanning' && 'Hold still, scanning in progress...'}
-          {status === 'success' && 'Your fingerprint has been successfully scanned.'}
-          {status === 'error' && 'Could not read fingerprint. Please clean the scanner and try again.'}
+          {status === 'idle' && 'Coloca tu dedo en el escáner para comenzar.'}
+          {status === 'scanning' && 'No te muevas, escaneo en progreso...'}
+          {status === 'success' && 'Tu huella ha sido escaneada exitosamente.'}
+          {status === 'error' && 'No se pudo leer la huella. Por favor, limpia el escáner e intenta de nuevo.'}
         </p>
       </div>
       <Button 
@@ -57,10 +57,10 @@ export function FingerprintScanner() {
         variant={status === 'error' ? 'destructive' : 'default'}
         className="w-full sm:w-auto"
       >
-        {status === 'idle' && <><Fingerprint className={buttonIconClass} /> Scan Fingerprint</>}
-        {status === 'scanning' && <><Loader2 className={cn(buttonIconClass, "animate-spin")} /> Scanning...</>}
-        {status === 'success' && <><CheckCircle2 className={buttonIconClass} /> Scanned Successfully</>}
-        {status === 'error' && <><XCircle className={buttonIconClass} /> Try Again</>}
+        {status === 'idle' && <><Fingerprint className={buttonIconClass} /> Escanear Huella</>}
+        {status === 'scanning' && <><Loader2 className={cn(buttonIconClass, "animate-spin")} /> Escaneando...</>}
+        {status === 'success' && <><CheckCircle2 className={buttonIconClass} /> Escaneado Exitosamente</>}
+        {status === 'error' && <><XCircle className={buttonIconClass} /> Intentar de Nuevo</>}
       </Button>
     </div>
   );
