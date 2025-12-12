@@ -27,10 +27,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon, UserPlus, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { useFirestore, useAuth } from "@/firebase"
-import { collection, addDoc, serverTimestamp } from "firebase/firestore"
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase"
 
 const formSchema = z.object({
   fullName: z.string().min(2, {
@@ -54,9 +52,6 @@ export function RegistrationForm() {
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = React.useState(false);
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const firestore = useFirestore();
-  const auth = useAuth();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -66,10 +61,6 @@ export function RegistrationForm() {
   })
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!firestore) {
-      toast({ variant: "destructive", title: "Error", description: "Firestore no está disponible." });
-      return;
-    }
      if (!profileImageFile) {
       toast({ variant: "destructive", title: "Error", description: "Por favor, sube o toma una foto de perfil." });
       return;
@@ -78,18 +69,43 @@ export function RegistrationForm() {
     setIsSubmitting(true);
 
     try {
-      // 1. Upload image to Firebase Storage
-      const storage = getStorage();
-      const storageRef = ref(storage, `profile_pictures/${Date.now()}_${profileImageFile.name}`);
-      const uploadResult = await uploadBytes(storageRef, profileImageFile);
-      const profilePictureUrl = await getDownloadURL(uploadResult.ref);
+      // 1. Upload image to Supabase Storage
+      const fileExtension = profileImageFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExtension}`;
+      const filePath = `profile_pictures/${fileName}`;
 
-      // 2. Save user data to Firestore
-      await addDoc(collection(firestore, "users"), {
-        ...values,
-        profilePictureUrl,
-        createdAt: serverTimestamp(),
-      });
+      const { error: uploadError } = await supabase.storage
+        .from('profile_pictures')
+        .upload(filePath, profileImageFile);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+      
+      // 2. Get public URL
+      const { data: urlData } = supabase.storage
+        .from('profile_pictures')
+        .getPublicUrl(filePath);
+
+      if (!urlData) {
+        throw new Error("No se pudo obtener la URL de la imagen.");
+      }
+
+      const profilePictureUrl = urlData.publicUrl;
+
+      // 3. Save user data to Supabase table
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([{ 
+          fullName: values.fullName,
+          startDate: values.startDate.toISOString(),
+          endDate: values.endDate.toISOString(),
+          profilePictureUrl,
+        }]);
+
+      if (insertError) {
+        throw insertError;
+      }
 
       toast({
         title: "¡Registro Exitoso!",
@@ -97,15 +113,15 @@ export function RegistrationForm() {
         className: "bg-accent text-accent-foreground border-accent",
       });
       form.reset();
-      setProfileImageFile(null); // Reset image file
+      setProfileImageFile(null);
       router.push("/");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al registrar usuario:", error);
       toast({
         variant: "destructive",
         title: "Error de Registro",
-        description: "No se pudo completar el registro. Por favor, intenta de nuevo.",
+        description: error.message || "No se pudo completar el registro. Por favor, intenta de nuevo.",
       });
     } finally {
       setIsSubmitting(false);

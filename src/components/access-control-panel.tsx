@@ -8,8 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { useCollection, useFirestore } from "@/firebase"
-import { collection, query, limit } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 
 type Status = 'idle' | 'scanning' | 'success' | 'error' | 'verified';
 type MembershipStatus = 'current' | 'expiring' | 'expired';
@@ -28,10 +27,7 @@ export function AccessControlPanel() {
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
-  const firestore = useFirestore();
-
-  const usersQuery = firestore ? query(collection(firestore, "users"), limit(10)) : null;
-  const { data: users, loading: loadingUsers } = useCollection<UserData>(usersQuery);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   const getCameraPermission = useCallback(async () => {
     try {
@@ -80,16 +76,26 @@ export function AccessControlPanel() {
     return 'current';
   };
 
-  const handleScan = () => {
+  const handleScan = async () => {
     setFingerprintStatus('scanning');
     setCurrentUser(null);
-    setTimeout(() => {
+    setLoadingUsers(true);
+
+    try {
+      // Simulate scanning a user ID. In a real scenario, this would come from a fingerprint/face scanner SDK.
+      // We will fetch all users and pick one randomly to simulate a successful scan.
+      const { data: users, error: fetchError } = await supabase.from('users').select('*');
+
+      if (fetchError) throw fetchError;
+
       if (users && users.length > 0 && Math.random() > 0.1) { // 90% success rate
-        const randomUser = users[Math.floor(Math.random() * users.length)];
-        const userWithDate = {
-          ...randomUser,
-          // Firestore timestamps need to be converted to Date objects
-          endDate: (randomUser.endDate as any).toDate ? (randomUser.endDate as any).toDate() : new Date(randomUser.endDate)
+        const randomUserFromDb = users[Math.floor(Math.random() * users.length)];
+        
+        const userWithDate: UserData = {
+          id: randomUserFromDb.id,
+          fullName: randomUserFromDb.fullName,
+          endDate: new Date(randomUserFromDb.endDate),
+          profilePictureUrl: randomUserFromDb.profilePictureUrl,
         };
         
         const status = calculateMembershipStatus(userWithDate.endDate);
@@ -103,8 +109,24 @@ export function AccessControlPanel() {
       } else {
         setFingerprintStatus('error');
         setCurrentUser(null);
+        toast({
+          variant: "destructive",
+          title: "Usuario no encontrado",
+          description: "No se pudo identificar al usuario. Intente de nuevo."
+        })
       }
-    }, 2000);
+    } catch (error: any) {
+      console.error("Error during scan:", error);
+      setFingerprintStatus('error');
+      setCurrentUser(null);
+      toast({
+        variant: "destructive",
+        title: "Error de Escaneo",
+        description: error.message || "Ocurrió un error al buscar el usuario."
+      })
+    } finally {
+      setLoadingUsers(false);
+    }
   };
   
   const handleReset = () => {
@@ -190,7 +212,7 @@ export function AccessControlPanel() {
                         disabled={fingerprintStatus === 'scanning' || fingerprintStatus === 'success' || loadingUsers}
                         className="w-full"
                     >
-                        {loadingUsers && <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Cargando usuarios...</>}
+                        {loadingUsers && <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Buscando...</>}
                         {!loadingUsers && fingerprintStatus === 'idle' && 'Iniciar Escaneo de Huella'}
                         {!loadingUsers && fingerprintStatus === 'scanning' && <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Escaneando...</>}
                         {!loadingUsers && fingerprintStatus === 'success' && <><CheckCircle2 className="mr-2 h-5 w-5" /> Verificado</>}
