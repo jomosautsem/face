@@ -6,9 +6,14 @@ import { PlaceHolderImages } from '@/lib/placeholder-images'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Camera, Upload, User, X } from 'lucide-react'
+import { Camera, Upload, User, Loader2 } from 'lucide-react'
 
-export function ProfilePictureHandler() {
+interface ProfilePictureHandlerProps {
+  onImageChange: (file: File | null) => void;
+  isUploading: boolean;
+}
+
+export function ProfilePictureHandler({ onImageChange, isUploading }: ProfilePictureHandlerProps) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isWebcamOpen, setIsWebcamOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -60,8 +65,13 @@ export function ProfilePictureHandler() {
       const context = canvas.getContext('2d');
       if (context) {
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        const dataUrl = canvas.toDataURL('image/png');
-        setImageSrc(dataUrl);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], "webcam_capture.png", { type: "image/png" });
+            onImageChange(file);
+            setImageSrc(URL.createObjectURL(file));
+          }
+        }, 'image/png');
         setIsWebcamOpen(false);
       }
     }
@@ -70,6 +80,7 @@ export function ProfilePictureHandler() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      onImageChange(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImageSrc(reader.result as string);
@@ -94,21 +105,28 @@ export function ProfilePictureHandler() {
             )}
         </AvatarFallback>
       </Avatar>
+      {isUploading && (
+        <div className="flex items-center text-sm text-muted-foreground">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Subiendo imagen...
+        </div>
+      )}
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
         accept="image/*"
         className="hidden"
+        disabled={isUploading}
       />
       <div className="flex gap-2">
-        <Button variant="outline" onClick={triggerFileUpload}>
+        <Button variant="outline" onClick={triggerFileUpload} disabled={isUploading}>
           <Upload className="mr-2 h-4 w-4" />
           Subir
         </Button>
         <Dialog open={isWebcamOpen} onOpenChange={setIsWebcamOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline">
+            <Button variant="outline" disabled={isUploading}>
               <Camera className="mr-2 h-4 w-4" />
               Tomar Foto
             </Button>

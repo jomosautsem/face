@@ -1,0 +1,46 @@
+{
+    "entities": {
+        "user": {
+            "title": "User",
+            "description": "Represents a user in the system.",
+            "type": "object",
+            "properties": {
+                "fullName": {
+                    "type": "string",
+                    "description": "The full name of the user."
+                },
+                "startDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "The start date of the user's membership."
+                },
+                "endDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "The end date of the user's membership."
+                },
+                "profilePictureUrl": {
+                    "type": "string",
+                    "description": "URL of the user's profile picture stored in Firebase Storage."
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Timestamp when the user was created."
+                }
+            },
+            "required": ["fullName", "startDate", "endDate", "profilePictureUrl", "createdAt"]
+        }
+    },
+    "auth": {
+        "providers": []
+    },
+    "firestore": {
+        "/users/{userId}": {
+            "schema": {
+                "$ref": "#/entities/user"
+            },
+            "description": "Stores user profile information."
+        }
+    }
+}

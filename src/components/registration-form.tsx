@@ -6,7 +6,7 @@ import * as z from "zod"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-import React from "react"
+import React, { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,9 +25,12 @@ import { ProfilePictureHandler } from "./profile-picture-handler"
 import { FingerprintScanner } from "./fingerprint-scanner"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { CalendarIcon, UserPlus } from "lucide-react"
+import { CalendarIcon, UserPlus, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { useFirestore, useAuth } from "@/firebase"
+import { collection, addDoc, serverTimestamp } from "firebase/firestore"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { useRouter } from "next/navigation"
 
 const formSchema = z.object({
   fullName: z.string().min(2, {
@@ -46,9 +49,15 @@ const formSchema = z.object({
 
 export function RegistrationForm() {
   const { toast } = useToast();
+  const router = useRouter();
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = React.useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = React.useState(false);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const firestore = useFirestore();
+  const auth = useAuth();
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,20 +65,57 @@ export function RegistrationForm() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    toast({
-      title: "¡Registro Exitoso!",
-      description: `¡Bienvenido, ${values.fullName}! Tu registro está completo.`,
-      className: "bg-accent text-accent-foreground border-accent",
-    })
-    form.reset();
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!firestore) {
+      toast({ variant: "destructive", title: "Error", description: "Firestore no está disponible." });
+      return;
+    }
+     if (!profileImageFile) {
+      toast({ variant: "destructive", title: "Error", description: "Por favor, sube o toma una foto de perfil." });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Upload image to Firebase Storage
+      const storage = getStorage();
+      const storageRef = ref(storage, `profile_pictures/${Date.now()}_${profileImageFile.name}`);
+      const uploadResult = await uploadBytes(storageRef, profileImageFile);
+      const profilePictureUrl = await getDownloadURL(uploadResult.ref);
+
+      // 2. Save user data to Firestore
+      await addDoc(collection(firestore, "users"), {
+        ...values,
+        profilePictureUrl,
+        createdAt: serverTimestamp(),
+      });
+
+      toast({
+        title: "¡Registro Exitoso!",
+        description: `¡Bienvenido, ${values.fullName}! Tu registro está completo.`,
+        className: "bg-accent text-accent-foreground border-accent",
+      });
+      form.reset();
+      setProfileImageFile(null); // Reset image file
+      router.push("/");
+
+    } catch (error) {
+      console.error("Error al registrar usuario:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de Registro",
+        description: "No se pudo completar el registro. Por favor, intenta de nuevo.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
     <Card className="w-full max-w-2xl shadow-2xl relative">
        <Link href="/" passHref>
-          <Button variant="ghost" className="absolute top-4 left-4">
+          <Button variant="ghost" className="absolute top-4 left-4" disabled={isSubmitting}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Volver
           </Button>
@@ -92,7 +138,7 @@ export function RegistrationForm() {
                     <FormItem>
                     <FormLabel>Nombre Completo</FormLabel>
                     <FormControl>
-                        <Input placeholder="Ej. Juan Pérez" {...field} />
+                        <Input placeholder="Ej. Juan Pérez" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -114,6 +160,7 @@ export function RegistrationForm() {
                                             "w-full pl-3 text-left font-normal",
                                             !field.value && "text-muted-foreground"
                                             )}
+                                             disabled={isSubmitting}
                                         >
                                             {field.value ? (
                                                 format(field.value, "PPP", { locale: es })
@@ -132,7 +179,7 @@ export function RegistrationForm() {
                                             field.onChange(date);
                                             setIsStartDatePickerOpen(false);
                                         }}
-                                        disabled={(date) => date < new Date("1900-01-01")}
+                                        disabled={(date) => date < new Date("1900-01-01") || isSubmitting}
                                         initialFocus
                                         locale={es}
                                     />
@@ -157,6 +204,7 @@ export function RegistrationForm() {
                                             "w-full pl-3 text-left font-normal",
                                             !field.value && "text-muted-foreground"
                                             )}
+                                            disabled={isSubmitting}
                                         >
                                             {field.value ? (
                                                 format(field.value, "PPP", { locale: es })
@@ -175,7 +223,7 @@ export function RegistrationForm() {
                                             field.onChange(date);
                                             setIsEndDatePickerOpen(false);
                                         }}
-                                        disabled={(date) => date < (form.getValues("startDate") || new Date())}
+                                        disabled={(date) => date < (form.getValues("startDate") || new Date()) || isSubmitting}
                                         initialFocus
                                         locale={es}
                                     />
@@ -190,7 +238,7 @@ export function RegistrationForm() {
 
             <Separator />
             
-            <ProfilePictureHandler />
+            <ProfilePictureHandler onImageChange={setProfileImageFile} isUploading={isSubmitting} />
             
             <Separator />
             
@@ -198,7 +246,10 @@ export function RegistrationForm() {
 
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" size="lg">Registrar Usuario</Button>
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+              {isSubmitting ? "Registrando..." : "Registrar Usuario"}
+            </Button>
           </CardFooter>
         </form>
       </Form>

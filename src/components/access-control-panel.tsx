@@ -8,30 +8,30 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { useCollection, useFirestore } from "@/firebase"
+import { collection, query, limit } from "firebase/firestore"
 
 type Status = 'idle' | 'scanning' | 'success' | 'error' | 'verified';
 type MembershipStatus = 'current' | 'expiring' | 'expired';
 
 interface UserData {
+  id: string;
   fullName: string;
   endDate: Date;
-  profilePicture: string;
+  profilePictureUrl: string;
 }
-
-const mockUser: UserData = {
-    fullName: "Jane Doe",
-    endDate: new Date(), // This will be updated in useEffect
-    profilePicture: "https://images.unsplash.com/photo-1531123414780-f74242c2b052?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cGVyc29uJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzY1NDU4MjcxfDA&ixlib=rb-4.1.0&q=80&w=1080"
-};
 
 export function AccessControlPanel() {
   const [fingerprintStatus, setFingerprintStatus] = useState<Status>('idle');
   const [currentUser, setCurrentUser] = useState<UserData | null>(null);
   const [membershipStatus, setMembershipStatus] = useState<MembershipStatus>('current');
-
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
+  const firestore = useFirestore();
+
+  const usersQuery = firestore ? query(collection(firestore, "users"), limit(10)) : null;
+  const { data: users, loading: loadingUsers } = useCollection<UserData>(usersQuery);
 
   const getCameraPermission = useCallback(async () => {
     try {
@@ -58,7 +58,6 @@ export function AccessControlPanel() {
   useEffect(() => {
     getCameraPermission();
 
-    // Clean up camera stream
     return () => {
         if (videoRef.current && videoRef.current.srcObject) {
             const stream = videoRef.current.srcObject as MediaStream;
@@ -85,16 +84,18 @@ export function AccessControlPanel() {
     setFingerprintStatus('scanning');
     setCurrentUser(null);
     setTimeout(() => {
-      if (Math.random() > 0.1) { // 90% success rate
-        const daysToAdd = Math.floor(Math.random() * 10) - 2; // -2 to 7 days from now
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + daysToAdd);
-        mockUser.endDate = futureDate;
-
-        const status = calculateMembershipStatus(mockUser.endDate);
+      if (users && users.length > 0 && Math.random() > 0.1) { // 90% success rate
+        const randomUser = users[Math.floor(Math.random() * users.length)];
+        const userWithDate = {
+          ...randomUser,
+          // Firestore timestamps need to be converted to Date objects
+          endDate: (randomUser.endDate as any).toDate ? (randomUser.endDate as any).toDate() : new Date(randomUser.endDate)
+        };
+        
+        const status = calculateMembershipStatus(userWithDate.endDate);
         
         setFingerprintStatus('success');
-        setCurrentUser(mockUser);
+        setCurrentUser(userWithDate);
         setMembershipStatus(status);
 
         setTimeout(() => setFingerprintStatus('verified'), 1500);
@@ -129,7 +130,7 @@ export function AccessControlPanel() {
 
       switch (membershipStatus) {
           case 'current': return `Membresía activa. Vence en ${diffDays} días.`;
-          case 'expiring': return diffDays === 1 ? 'La membresía vence mañana.' : 'La membresía vence hoy.';
+          case 'expiring': return diffDays >= 1 ? 'La membresía vence mañana.' : 'La membresía vence hoy.';
           case 'expired': return "Membresía vencida.";
       }
   };
@@ -186,14 +187,15 @@ export function AccessControlPanel() {
                     </p>
                     <Button 
                         onClick={fingerprintStatus === 'idle' || fingerprintStatus === 'error' ? handleScan : handleReset}
-                        disabled={fingerprintStatus === 'scanning' || fingerprintStatus === 'success'}
+                        disabled={fingerprintStatus === 'scanning' || fingerprintStatus === 'success' || loadingUsers}
                         className="w-full"
                     >
-                        {fingerprintStatus === 'idle' && 'Iniciar Escaneo de Huella'}
-                        {fingerprintStatus === 'scanning' && <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Escaneando...</>}
-                        {fingerprintStatus === 'success' && <><CheckCircle2 className="mr-2 h-5 w-5" /> Verificado</>}
-                        {(fingerprintStatus === 'error') && <><XCircle className="mr-2 h-5 w-5" /> Reintentar</>}
-                        {(fingerprintStatus === 'verified') && 'Escanear Siguiente'}
+                        {loadingUsers && <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Cargando usuarios...</>}
+                        {!loadingUsers && fingerprintStatus === 'idle' && 'Iniciar Escaneo de Huella'}
+                        {!loadingUsers && fingerprintStatus === 'scanning' && <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Escaneando...</>}
+                        {!loadingUsers && fingerprintStatus === 'success' && <><CheckCircle2 className="mr-2 h-5 w-5" /> Verificado</>}
+                        {!loadingUsers && (fingerprintStatus === 'error') && <><XCircle className="mr-2 h-5 w-5" /> Reintentar</>}
+                        {!loadingUsers && (fingerprintStatus === 'verified') && 'Escanear Siguiente'}
                     </Button>
                 </CardContent>
             </Card>
@@ -207,7 +209,7 @@ export function AccessControlPanel() {
             <CardContent className="flex flex-col items-center gap-4">
                 <div className={cn("w-full h-3 rounded-full transition-colors duration-500", getStatusColor())} />
                 <Avatar className="h-36 w-36 border-4 border-muted">
-                    <AvatarImage src={currentUser?.profilePicture} alt="Profile picture" />
+                    <AvatarImage src={currentUser?.profilePictureUrl} alt="Foto de perfil" />
                     <AvatarFallback className="bg-secondary">
                         <User className="h-20 w-20 text-muted-foreground" />
                     </AvatarFallback>
