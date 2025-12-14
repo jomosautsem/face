@@ -86,13 +86,11 @@ export function AccessControlPanel() {
     setFingerprintStatus('scanning');
     setCurrentUser(null);
     try {
-      // In a real scenario, this would come from a fingerprint/face scanner SDK with a user ID.
-      // Here we fetch all users and pick one randomly to simulate a successful scan.
       const { data: users, error: fetchError } = await supabase.from('users').select('*');
 
       if (fetchError) throw fetchError;
 
-      if (users && users.length > 0 && Math.random() > 0.1) { // 90% success rate
+      if (users && users.length > 0) {
         const randomUserFromDb = users[Math.floor(Math.random() * users.length)];
         
         const userWithDate: UserData = {
@@ -114,8 +112,8 @@ export function AccessControlPanel() {
         setCurrentUser(null);
         toast({
           variant: "destructive",
-          title: "Usuario no encontrado",
-          description: "No se pudo identificar al usuario. Intente de nuevo."
+          title: "No hay usuarios registrados",
+          description: "No se encontraron usuarios en la base de datos. Agregue un usuario primero."
         })
       }
     } catch (error: any) {
@@ -164,8 +162,8 @@ export function AccessControlPanel() {
   const getStatusColor = () => {
     if (!currentUser) return "bg-gray-400";
     switch (membershipStatus) {
-        case 'current': return "bg-yellow-400";
-        case 'expiring': return "bg-green-500";
+        case 'current': return "bg-green-500";
+        case 'expiring': return "bg-yellow-400";
         case 'expired': return "bg-red-500";
     }
   };
@@ -175,7 +173,7 @@ export function AccessControlPanel() {
       const today = new Date();
       const endDate = currentUser.endDate;
       const diffTime = endDate.getTime() - today.getTime();
-      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       switch (membershipStatus) {
           case 'current': return `Membresía activa. Vence en ${diffDays} días.`;
