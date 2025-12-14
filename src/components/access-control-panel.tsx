@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Fingerprint, Loader2, CheckCircle2, XCircle, Camera, User, ScanFace, CalendarClock } from "lucide-react"
+import { Fingerprint, Loader2, CheckCircle2, XCircle, Camera, User, ScanFace, CalendarClock, Video, VideoOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -25,7 +25,9 @@ export function AccessControlPanel() {
   const [currentUser, setCurrentUser] = useState<UserData | null>(null);
   const [membershipStatus, setMembershipStatus] = useState<MembershipStatus>('current');
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
+  const [isCameraScanning, setIsCameraScanning] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
   const [loadingUsers, setLoadingUsers] = useState(false);
 
@@ -59,6 +61,9 @@ export function AccessControlPanel() {
             const stream = videoRef.current.srcObject as MediaStream;
             stream.getTracks().forEach(track => track.stop());
         }
+        if (scanIntervalRef.current) {
+            clearInterval(scanIntervalRef.current);
+        }
     }
   }, [getCameraPermission]);
 
@@ -76,14 +81,13 @@ export function AccessControlPanel() {
     return 'current';
   };
 
-  const handleScan = async () => {
+  const findUserAndSetState = async () => {
+    setLoadingUsers(true);
     setFingerprintStatus('scanning');
     setCurrentUser(null);
-    setLoadingUsers(true);
-
     try {
-      // Simulate scanning a user ID. In a real scenario, this would come from a fingerprint/face scanner SDK.
-      // We will fetch all users and pick one randomly to simulate a successful scan.
+      // In a real scenario, this would come from a fingerprint/face scanner SDK with a user ID.
+      // Here we fetch all users and pick one randomly to simulate a successful scan.
       const { data: users, error: fetchError } = await supabase.from('users').select('*');
 
       if (fetchError) throw fetchError;
@@ -105,7 +109,6 @@ export function AccessControlPanel() {
         setMembershipStatus(status);
 
         setTimeout(() => setFingerprintStatus('verified'), 1500);
-
       } else {
         setFingerprintStatus('error');
         setCurrentUser(null);
@@ -126,6 +129,30 @@ export function AccessControlPanel() {
       })
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const handleFingerprintScan = () => {
+    findUserAndSetState();
+  };
+
+  const toggleCameraScan = () => {
+    if (isCameraScanning) {
+      // Stop scanning
+      setIsCameraScanning(false);
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+      }
+      setFingerprintStatus('idle');
+      setCurrentUser(null);
+    } else {
+      // Start scanning
+      setIsCameraScanning(true);
+      toast({ title: "Escaneo automático iniciado", description: "Buscando usuarios cada 5 segundos." });
+      findUserAndSetState(); // Scan immediately
+      scanIntervalRef.current = setInterval(() => {
+        findUserAndSetState();
+      }, 5000);
     }
   };
   
@@ -162,7 +189,17 @@ export function AccessControlPanel() {
         <div className="space-y-8">
             <Card className="w-full shadow-lg">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl"><Camera /> Escáner de Cámara</CardTitle>
+                    <CardTitle className="flex items-center justify-between text-xl">
+                        <span className="flex items-center gap-2"><Camera /> Escáner de Cámara</span>
+                        <Button
+                            onClick={toggleCameraScan}
+                            disabled={!hasCameraPermission || loadingUsers}
+                            variant={isCameraScanning ? "destructive" : "default"}
+                            size="sm"
+                        >
+                            {isCameraScanning ? <><VideoOff className="mr-2 h-4 w-4" /> Detener</> : <><Video className="mr-2 h-4 w-4" /> Iniciar Escaneo</>}
+                        </Button>
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="aspect-video w-full bg-muted rounded-md overflow-hidden relative flex items-center justify-center">
@@ -176,7 +213,7 @@ export function AccessControlPanel() {
                             </Alert>
                         )}
                         {hasCameraPermission && (
-                            <div className="absolute inset-0 flex items-center justify-center p-4">
+                            <div className={cn("absolute inset-0 flex items-center justify-center p-4 transition-opacity", isCameraScanning ? "opacity-100" : "opacity-0")}>
                                <ScanFace className="w-32 h-32 text-white/20 animate-pulse" />
                             </div>
                         )}
@@ -202,14 +239,14 @@ export function AccessControlPanel() {
                     </div>
                     <p className="text-sm text-muted-foreground min-h-[40px]">
                         {fingerprintStatus === 'idle' && 'Listo para escanear. Presiona el botón para iniciar.'}
-                        {fingerprintStatus === 'scanning' && 'Mantén el dedo quieto, escaneando...'}
+                        {fingerprintStatus === 'scanning' && 'Buscando usuario...'}
                         {fingerprintStatus === 'success' && '¡Éxito! Verificado.'}
-                        {fingerprintStatus === 'error' && 'No se pudo leer la huella. Intenta de nuevo.'}
+                        {fingerprintStatus === 'error' && 'No se pudo identificar al usuario. Intenta de nuevo.'}
                         {fingerprintStatus === 'verified' && 'Escaneo completo. Listo para el próximo usuario.'}
                     </p>
                     <Button 
-                        onClick={fingerprintStatus === 'idle' || fingerprintStatus === 'error' ? handleScan : handleReset}
-                        disabled={fingerprintStatus === 'scanning' || fingerprintStatus === 'success' || loadingUsers}
+                        onClick={fingerprintStatus === 'idle' || fingerprintStatus === 'error' ? handleFingerprintScan : handleReset}
+                        disabled={fingerprintStatus === 'scanning' || fingerprintStatus === 'success' || loadingUsers || isCameraScanning}
                         className="w-full"
                     >
                         {loadingUsers && <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Buscando...</>}
@@ -246,8 +283,18 @@ export function AccessControlPanel() {
                     </div>
                 ) : (
                     <div className="text-center text-muted-foreground space-y-2 py-8">
-                        <p>Esperando identificación...</p>
-                        <p className="text-sm">Escanee su rostro o huella digital.</p>
+                         {isCameraScanning ? (
+                            <>
+                               <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                               <p>Escaneo automático activo...</p>
+                               <p className="text-sm">Buscando rostros reconocidos.</p>
+                            </>
+                        ) : (
+                            <>
+                                <p>Esperando identificación...</p>
+                                <p className="text-sm">Escanee su rostro o huella digital.</p>
+                            </>
+                        )}
                     </div>
                 )}
             </CardContent>
