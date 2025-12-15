@@ -71,14 +71,14 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
   });
 
   useEffect(() => {
-    if (user) {
+    if (user && isOpen) {
         form.reset({
             fullName: user.fullName,
             startDate: new Date(user.startDate),
             endDate: new Date(user.endDate),
         });
     }
-  }, [user, form]);
+  }, [user, isOpen, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -96,6 +96,7 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
       
       onUserUpdate();
       onOpenChange(false);
+      toast({ title: 'Éxito', description: 'Usuario actualizado correctamente.' });
 
     } catch (error: any) {
       console.error("Error al actualizar usuario:", error);
@@ -209,7 +210,6 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
                                 selected={field.value}
                                 onSelect={(date) => {
                                   field.onChange(date);
-
                                   setIsEndOpen(false);
                                 }}
                                 disabled={(date) => date < (form.getValues("startDate") || new Date()) || isSubmitting}

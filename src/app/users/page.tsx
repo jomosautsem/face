@@ -205,10 +205,7 @@ export default function UsersPage() {
             user={selectedUser}
             isOpen={isEditDialogOpen}
             onOpenChange={setIsEditDialogOpen}
-            onUserUpdate={() => {
-                fetchUsers();
-                toast({ title: 'Éxito', description: 'Usuario actualizado correctamente.' });
-            }}
+            onUserUpdate={fetchUsers}
         />
       )}
 
