@@ -54,7 +54,8 @@ export function AccessControlPanel() {
   }, [toast]);
 
   useEffect(() => {
-    getCameraPermission();
+    // We only ask for permission, no need to start it right away
+    // getCameraPermission();
 
     return () => {
         if (videoRef.current && videoRef.current.srcObject) {
@@ -65,7 +66,7 @@ export function AccessControlPanel() {
             clearInterval(scanIntervalRef.current);
         }
     }
-  }, [getCameraPermission]);
+  }, []);
 
   const calculateMembershipStatus = (endDate: Date): MembershipStatus => {
     const today = new Date();
@@ -91,6 +92,7 @@ export function AccessControlPanel() {
       if (fetchError) throw fetchError;
 
       if (users && users.length > 0) {
+        // Always succeed in finding a user if there are any
         const randomUserFromDb = users[Math.floor(Math.random() * users.length)];
         
         const userWithDate: UserData = {
@@ -113,7 +115,7 @@ export function AccessControlPanel() {
         toast({
           variant: "destructive",
           title: "No hay usuarios registrados",
-          description: "No se encontraron usuarios en la base de datos. Agregue un usuario primero."
+          description: "La base de datos está vacía. Agregue un usuario primero."
         })
       }
     } catch (error: any) {
@@ -123,12 +125,13 @@ export function AccessControlPanel() {
       toast({
         variant: "destructive",
         title: "Error de Escaneo",
-        description: error.message || "Ocurrió un error al buscar el usuario."
+        description: error.message || "Ocurrió un error al buscar el usuario. Asegúrese de que RLS esté configurado para permitir lecturas públicas."
       })
     } finally {
       setLoadingUsers(false);
     }
   };
+
 
   const handleFingerprintScan = () => {
     findUserAndSetState();
@@ -141,16 +144,24 @@ export function AccessControlPanel() {
       if (scanIntervalRef.current) {
         clearInterval(scanIntervalRef.current);
       }
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+        setHasCameraPermission(false);
+      }
       setFingerprintStatus('idle');
       setCurrentUser(null);
     } else {
       // Start scanning
-      setIsCameraScanning(true);
-      toast({ title: "Escaneo automático iniciado", description: "Buscando usuarios cada 5 segundos." });
-      findUserAndSetState(); // Scan immediately
-      scanIntervalRef.current = setInterval(() => {
-        findUserAndSetState();
-      }, 5000);
+      getCameraPermission().then(() => {
+        setIsCameraScanning(true);
+        toast({ title: "Escaneo automático iniciado", description: "Buscando usuarios cada 5 segundos." });
+        findUserAndSetState(); // Scan immediately
+        scanIntervalRef.current = setInterval(() => {
+          findUserAndSetState();
+        }, 5000);
+      });
     }
   };
   
@@ -191,7 +202,7 @@ export function AccessControlPanel() {
                         <span className="flex items-center gap-2"><Camera /> Escáner de Cámara</span>
                         <Button
                             onClick={toggleCameraScan}
-                            disabled={!hasCameraPermission || loadingUsers}
+                            disabled={loadingUsers}
                             variant={isCameraScanning ? "destructive" : "default"}
                             size="sm"
                         >
@@ -202,13 +213,11 @@ export function AccessControlPanel() {
                 <CardContent>
                     <div className="aspect-video w-full bg-muted rounded-md overflow-hidden relative flex items-center justify-center">
                         <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                        {!hasCameraPermission && (
-                             <Alert variant="destructive" className="w-11/12">
-                                <AlertTitle>Se requiere acceso a la cámara</AlertTitle>
-                                <AlertDescription>
-                                    Por favor, permite el acceso a la cámara para usar esta función.
-                                </AlertDescription>
-                            </Alert>
+                        {!hasCameraPermission && !isCameraScanning && (
+                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
+                                <Camera className="h-16 w-16 text-white/50 mb-4"/>
+                                <p className="text-white">La cámara está desactivada</p>
+                             </div>
                         )}
                         {hasCameraPermission && (
                             <div className={cn("absolute inset-0 flex items-center justify-center p-4 transition-opacity", isCameraScanning ? "opacity-100" : "opacity-0")}>
@@ -251,7 +260,7 @@ export function AccessControlPanel() {
                         {!loadingUsers && fingerprintStatus === 'idle' && 'Iniciar Escaneo de Huella'}
                         {!loadingUsers && fingerprintStatus === 'scanning' && <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Escaneando...</>}
                         {!loadingUsers && fingerprintStatus === 'success' && <><CheckCircle2 className="mr-2 h-5 w-5" /> Verificado</>}
-                        {!loadingUsers && (fingerprintStatus === 'error') && <><XCircle className="mr-2 h-5 w-5" /> Reintentar</>}
+                        {!loadingUsers && (fingerprintStatus === 'error') && 'Reintentar'}
                         {!loadingUsers && (fingerprintStatus === 'verified') && 'Escanear Siguiente'}
                     </Button>
                 </CardContent>
@@ -289,6 +298,7 @@ export function AccessControlPanel() {
                             </>
                         ) : (
                             <>
+                                <User className="mx-auto h-12 w-12 text-gray-300" />
                                 <p>Esperando identificación...</p>
                                 <p className="text-sm">Escanee su rostro o huella digital.</p>
                             </>
