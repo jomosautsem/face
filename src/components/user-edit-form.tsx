@@ -58,6 +58,8 @@ const formSchema = z.object({
 export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserEditFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStartOpen, setIsStartOpen] = useState(false);
+  const [isEndOpen, setIsEndOpen] = useState(false);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -137,7 +139,7 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
                 render={({ field }) => (
                 <FormItem className="flex flex-col">
                     <FormLabel>Fecha de Inicio</FormLabel>
-                    <Popover>
+                    <Popover open={isStartOpen} onOpenChange={setIsStartOpen}>
                         <PopoverTrigger asChild>
                             <FormControl>
                                 <Button
@@ -161,7 +163,10 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
                             <Calendar
                                 mode="single"
                                 selected={field.value}
-                                onSelect={field.onChange}
+                                onSelect={(date) => {
+                                  field.onChange(date);
+                                  setIsStartOpen(false);
+                                }}
                                 disabled={(date) => date < new Date("1900-01-01") || isSubmitting}
                                 initialFocus
                                 locale={es}
@@ -178,7 +183,7 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
                 render={({ field }) => (
                 <FormItem className="flex flex-col">
                     <FormLabel>Fecha de Fin</FormLabel>
-                     <Popover>
+                     <Popover open={isEndOpen} onOpenChange={setIsEndOpen}>
                         <PopoverTrigger asChild>
                             <FormControl>
                                 <Button
@@ -202,7 +207,11 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
                             <Calendar
                                 mode="single"
                                 selected={field.value}
-                                onSelect={field.onChange}
+                                onSelect={(date) => {
+                                  field.onChange(date);
+
+                                  setIsEndOpen(false);
+                                }}
                                 disabled={(date) => date < (form.getValues("startDate") || new Date()) || isSubmitting}
                                 initialFocus
                                 locale={es}
