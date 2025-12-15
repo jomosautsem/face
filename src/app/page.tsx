@@ -8,7 +8,7 @@ export default function Home() {
     <main className="flex min-h-screen w-full flex-col items-center bg-background p-4 sm:p-6 md:p-8">
       <div className="w-full max-w-6xl">
         <div className="flex justify-between items-center mb-6 gap-4">
-          <h1 className="text-3xl font-bold text-foreground">Panel de Control</h1>
+          <h1 className="text-4xl font-bold text-primary drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">Panel de Control</h1>
           <div className="flex gap-2">
             <Link href="/users" passHref>
               <Button variant="outline">

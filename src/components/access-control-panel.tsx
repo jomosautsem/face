@@ -5,7 +5,6 @@ import { Fingerprint, Loader2, CheckCircle2, XCircle, Camera, User, ScanFace, Ca
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
@@ -25,7 +24,7 @@ export function AccessControlPanel() {
   const [currentUser, setCurrentUser] = useState<UserData | null>(null);
   const [membershipStatus, setMembershipStatus] = useState<MembershipStatus>('current');
   const [hasCameraPermission, setHasCameraPermission] = useState(false);
-  const [isCameraScanning, setIsCameraScanning] = useState(false);
+  const isCameraScanning = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
@@ -53,15 +52,18 @@ export function AccessControlPanel() {
     }
   }, [toast]);
 
-  useEffect(() => {
-    // We only ask for permission, no need to start it right away
-    // getCameraPermission();
+  const stopCamera = () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach(track => track.stop());
+          videoRef.current.srcObject = null;
+          setHasCameraPermission(false);
+      }
+  }
 
+  useEffect(() => {
     return () => {
-        if (videoRef.current && videoRef.current.srcObject) {
-            const stream = videoRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
-        }
+        stopCamera();
         if (scanIntervalRef.current) {
             clearInterval(scanIntervalRef.current);
         }
@@ -125,7 +127,7 @@ export function AccessControlPanel() {
       toast({
         variant: "destructive",
         title: "Error de Escaneo",
-        description: error.message || "Ocurrió un error al buscar el usuario. Asegúrese de que RLS esté configurado para permitir lecturas públicas."
+        description: error.message || "Ocurrió un error al buscar el usuario."
       })
     } finally {
       setLoadingUsers(false);
@@ -138,29 +140,28 @@ export function AccessControlPanel() {
   };
 
   const toggleCameraScan = () => {
-    if (isCameraScanning) {
+    if (isCameraScanning.current) {
       // Stop scanning
-      setIsCameraScanning(false);
+      isCameraScanning.current = false;
       if (scanIntervalRef.current) {
         clearInterval(scanIntervalRef.current);
       }
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-        videoRef.current.srcObject = null;
-        setHasCameraPermission(false);
-      }
+      stopCamera();
       setFingerprintStatus('idle');
       setCurrentUser(null);
+      // Force re-render
+      setHasCameraPermission(false)
     } else {
       // Start scanning
       getCameraPermission().then(() => {
-        setIsCameraScanning(true);
+        isCameraScanning.current = true;
         toast({ title: "Escaneo automático iniciado", description: "Buscando usuarios cada 5 segundos." });
         findUserAndSetState(); // Scan immediately
         scanIntervalRef.current = setInterval(() => {
           findUserAndSetState();
         }, 5000);
+         // Force re-render
+        setHasCameraPermission(true);
       });
     }
   };
@@ -171,13 +172,22 @@ export function AccessControlPanel() {
   };
 
   const getStatusColor = () => {
-    if (!currentUser) return "bg-gray-400";
+    if (!currentUser || fingerprintStatus !== 'verified') return "bg-muted/20";
     switch (membershipStatus) {
         case 'current': return "bg-green-500";
         case 'expiring': return "bg-yellow-400";
         case 'expired': return "bg-red-500";
     }
   };
+
+  const getAvatarBorder = () => {
+    if (!currentUser || fingerprintStatus !== 'verified') return "border-muted/20";
+     switch (membershipStatus) {
+        case 'current': return "neon-pulse-green border-green-500";
+        case 'expiring': return "neon-pulse-yellow border-yellow-400";
+        case 'expired': return "neon-pulse-red border-red-500";
+    }
+  }
   
   const getStatusMessage = () => {
       if (!currentUser) return "Esperando escaneo...";
@@ -194,55 +204,61 @@ export function AccessControlPanel() {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start" style={{ perspective: '1000px' }}>
         <div className="space-y-8">
-            <Card className="w-full shadow-lg">
+            <Card className="w-full shadow-2xl border-primary/20 bg-card/80 backdrop-blur-sm transform transition-transform duration-500 hover:rotate-x-2 hover:-translate-y-2">
                 <CardHeader>
-                    <CardTitle className="flex items-center justify-between text-xl">
+                    <CardTitle className="flex items-center justify-between text-xl text-primary">
                         <span className="flex items-center gap-2"><Camera /> Escáner de Cámara</span>
                         <Button
                             onClick={toggleCameraScan}
                             disabled={loadingUsers}
-                            variant={isCameraScanning ? "destructive" : "default"}
+                            variant={isCameraScanning.current ? "destructive" : "default"}
                             size="sm"
                         >
-                            {isCameraScanning ? <><VideoOff className="mr-2 h-4 w-4" /> Detener</> : <><Video className="mr-2 h-4 w-4" /> Iniciar Escaneo</>}
+                            {isCameraScanning.current ? <><VideoOff className="mr-2 h-4 w-4" /> Detener</> : <><Video className="mr-2 h-4 w-4" /> Iniciar Escaneo</>}
                         </Button>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="aspect-video w-full bg-muted rounded-md overflow-hidden relative flex items-center justify-center">
+                    <div className="aspect-video w-full bg-black rounded-md overflow-hidden relative flex items-center justify-center border-2 border-primary/30">
                         <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                        {!hasCameraPermission && !isCameraScanning && (
+                        {!hasCameraPermission && !isCameraScanning.current && (
                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50">
-                                <Camera className="h-16 w-16 text-white/50 mb-4"/>
-                                <p className="text-white">La cámara está desactivada</p>
+                                <Camera className="h-16 w-16 text-primary/50 mb-4"/>
+                                <p className="text-primary/80">Cámara Desactivada</p>
                              </div>
                         )}
                         {hasCameraPermission && (
-                            <div className={cn("absolute inset-0 flex items-center justify-center p-4 transition-opacity", isCameraScanning ? "opacity-100" : "opacity-0")}>
-                               <ScanFace className="w-32 h-32 text-white/20 animate-pulse" />
+                            <div className={cn("absolute inset-0 flex items-center justify-center p-4 transition-opacity", isCameraScanning.current ? "opacity-100" : "opacity-0")}>
+                               <ScanFace className="w-32 h-32 text-primary/20 animate-pulse" />
                             </div>
                         )}
                     </div>
                 </CardContent>
             </Card>
 
-            <Card className="w-full shadow-lg">
+            <Card className="w-full shadow-2xl border-primary/20 bg-card/80 backdrop-blur-sm transform transition-transform duration-500 hover:rotate-x-2 hover:-translate-y-2">
                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl"><Fingerprint /> Escáner de Huella</CardTitle>
+                    <CardTitle className="flex items-center gap-2 text-xl text-primary"><Fingerprint /> Escáner de Huella</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4 text-center">
-                     <div className={cn("flex items-center justify-center h-20 w-20 rounded-full transition-colors",
-                        (fingerprintStatus === 'idle' || fingerprintStatus === 'verified') && 'bg-muted',
+                     <div className={cn("relative flex items-center justify-center h-24 w-24 rounded-full transition-all duration-300",
                         fingerprintStatus === 'scanning' && 'bg-primary/10',
-                        fingerprintStatus === 'success' && 'bg-accent/20',
-                        fingerprintStatus === 'error' && 'bg-destructive/20'
+                        fingerprintStatus === 'success' && 'bg-green-500/20',
+                        fingerprintStatus === 'error' && 'bg-red-500/20'
                     )}>
-                        {fingerprintStatus === 'success' && <CheckCircle2 className="h-10 w-10 text-accent" />}
-                        {fingerprintStatus === 'scanning' && <Fingerprint className="h-10 w-10 text-primary animate-pulse" />}
-                        {(fingerprintStatus === 'idle' || fingerprintStatus === 'verified') && <Fingerprint className="h-10 w-10 text-muted-foreground" />}
-                        {fingerprintStatus === 'error' && <XCircle className="h-10 w-10 text-destructive" />}
+                        <div className={cn(
+                            "absolute inset-0 rounded-full animate-ping-slow",
+                            fingerprintStatus === 'scanning' && 'bg-primary/50',
+                            fingerprintStatus === 'success' && 'bg-green-500/50',
+                            fingerprintStatus === 'error' && 'bg-red-500/50',
+                            (fingerprintStatus === 'idle' || fingerprintStatus === 'verified') && 'hidden'
+                         )} />
+                        {fingerprintStatus === 'success' && <CheckCircle2 className="h-12 w-12 text-green-400" />}
+                        {fingerprintStatus === 'scanning' && <Fingerprint className="h-12 w-12 text-primary animate-pulse" />}
+                        {(fingerprintStatus === 'idle' || fingerprintStatus === 'verified') && <Fingerprint className="h-12 w-12 text-muted-foreground" />}
+                        {fingerprintStatus === 'error' && <XCircle className="h-12 w-12 text-red-500" />}
                     </div>
                     <p className="text-sm text-muted-foreground min-h-[40px]">
                         {fingerprintStatus === 'idle' && 'Listo para escanear. Presiona el botón para iniciar.'}
@@ -253,8 +269,9 @@ export function AccessControlPanel() {
                     </p>
                     <Button 
                         onClick={fingerprintStatus === 'idle' || fingerprintStatus === 'error' ? handleFingerprintScan : handleReset}
-                        disabled={fingerprintStatus === 'scanning' || fingerprintStatus === 'success' || loadingUsers || isCameraScanning}
+                        disabled={fingerprintStatus === 'scanning' || fingerprintStatus === 'success' || loadingUsers || isCameraScanning.current}
                         className="w-full"
+                        variant="default"
                     >
                         {loadingUsers && <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Buscando...</>}
                         {!loadingUsers && fingerprintStatus === 'idle' && 'Iniciar Escaneo de Huella'}
@@ -267,22 +284,26 @@ export function AccessControlPanel() {
             </Card>
         </div>
         
-        <Card className="w-full sticky top-8 shadow-lg">
+        <Card className="w-full sticky top-8 shadow-2xl border-primary/20 bg-card/80 backdrop-blur-sm transform transition-transform duration-500 hover:-rotate-x-2 hover:-translate-y-2">
             <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Información del Usuario</CardTitle>
-                <CardDescription>Resultados del escaneo</CardDescription>
+                <CardTitle className="text-3xl font-bold text-primary">Información del Usuario</CardTitle>
+                <CardDescription className="text-base text-muted-foreground">Resultados del escaneo</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-4">
-                <div className={cn("w-full h-3 rounded-full transition-colors duration-500", getStatusColor())} />
-                <Avatar className="h-36 w-36 border-4 border-muted">
-                    <AvatarImage src={currentUser?.profilePictureUrl} alt="Foto de perfil" />
-                    <AvatarFallback className="bg-secondary">
-                        <User className="h-20 w-20 text-muted-foreground" />
-                    </AvatarFallback>
-                </Avatar>
+                <div className="relative w-full h-3 rounded-full bg-muted/20 overflow-hidden">
+                  <div className={cn("absolute top-0 left-0 h-full rounded-full transition-all duration-500", getStatusColor())} style={{ width: '100%' }} />
+                </div>
+                <div className={cn("relative p-1 rounded-full transition-all duration-300", getAvatarBorder())}>
+                    <Avatar className="h-36 w-36 border-4 border-background">
+                        <AvatarImage src={currentUser?.profilePictureUrl} alt="Foto de perfil" />
+                        <AvatarFallback className="bg-secondary">
+                            <User className="h-20 w-20 text-muted-foreground" />
+                        </AvatarFallback>
+                    </Avatar>
+                </div>
                 {currentUser ? (
                     <div className="text-center space-y-2">
-                        <h2 className="text-2xl font-bold">{currentUser.fullName}</h2>
+                        <h2 className="text-3xl font-bold">{currentUser.fullName}</h2>
                         <div className="flex items-center justify-center gap-2 text-muted-foreground">
                             <CalendarClock className="h-5 w-5" />
                             <p>{getStatusMessage()}</p>
@@ -290,7 +311,7 @@ export function AccessControlPanel() {
                     </div>
                 ) : (
                     <div className="text-center text-muted-foreground space-y-2 py-8">
-                         {isCameraScanning ? (
+                         {isCameraScanning.current ? (
                             <>
                                <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                                <p>Escaneo automático activo...</p>
@@ -298,7 +319,7 @@ export function AccessControlPanel() {
                             </>
                         ) : (
                             <>
-                                <User className="mx-auto h-12 w-12 text-gray-300" />
+                                <User className="mx-auto h-12 w-12 text-gray-600" />
                                 <p>Esperando identificación...</p>
                                 <p className="text-sm">Escanee su rostro o huella digital.</p>
                             </>
