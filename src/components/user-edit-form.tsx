@@ -63,14 +63,11 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      fullName: user.fullName,
-      startDate: new Date(user.startDate),
-      endDate: new Date(user.endDate),
-    },
+    // We'll set defaultValues in useEffect to ensure they are fresh when the dialog opens
   });
 
   useEffect(() => {
+    // Reset the form with user data every time the dialog opens for a new user
     if (user && isOpen) {
         form.reset({
             fullName: user.fullName,
@@ -94,9 +91,8 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
 
       if (error) throw error;
       
-      onUserUpdate();
-      onOpenChange(false);
       toast({ title: 'Éxito', description: 'Usuario actualizado correctamente.' });
+      onUserUpdate(); // This will close the dialog and refresh the data
 
     } catch (error: any) {
       console.error("Error al actualizar usuario:", error);
@@ -116,7 +112,7 @@ export function UserEditForm({ user, isOpen, onOpenChange, onUserUpdate }: UserE
         <DialogHeader>
           <DialogTitle>Editar Usuario</DialogTitle>
           <DialogDescription>
-            Actualiza los datos de {user.fullName}.
+            Actualiza los datos de {user?.fullName}.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

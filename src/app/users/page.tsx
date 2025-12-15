@@ -80,6 +80,10 @@ export default function UsersPage() {
 
   const handleDelete = async () => {
     if (!selectedUser) return;
+
+    // First, close the dialog to prevent state conflicts
+    setIsDeleteDialogOpen(false);
+
     const { error } = await supabase
       .from('users')
       .delete()
@@ -96,11 +100,17 @@ export default function UsersPage() {
         title: 'Usuario eliminado',
         description: `${selectedUser.fullName} ha sido eliminado.`,
       });
-      fetchUsers(); // Refresh list
+      // Fetch users after the UI has settled
+      fetchUsers();
     }
-    setIsDeleteDialogOpen(false);
+    // Nullify the user after the operation
     setSelectedUser(null);
   };
+
+  const handleUpdateSuccess = () => {
+    setIsEditDialogOpen(false);
+    fetchUsers();
+  }
 
   return (
     <main className="flex min-h-screen w-full flex-col items-center bg-background p-4 sm:p-6 md:p-8">
@@ -205,7 +215,7 @@ export default function UsersPage() {
             user={selectedUser}
             isOpen={isEditDialogOpen}
             onOpenChange={setIsEditDialogOpen}
-            onUserUpdate={fetchUsers}
+            onUserUpdate={handleUpdateSuccess}
         />
       )}
 
