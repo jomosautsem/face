@@ -30,7 +30,7 @@ export function AccessControlPanel() {
   const { toast } = useToast();
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  const getCameraPermission = useCallback(async () => {
+  const getCameraPermission = useCallback(async (): Promise<boolean> => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("La API de cámara no es compatible con este navegador.");
@@ -41,6 +41,7 @@ export function AccessControlPanel() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
+      return true;
     } catch (error) {
       console.error('Error al acceder a la cámara:', error);
       setHasCameraPermission(false);
@@ -49,6 +50,7 @@ export function AccessControlPanel() {
         title: 'Acceso a la cámara denegado',
         description: 'Por favor, habilita los permisos de la cámara en la configuración de tu navegador para usar esta aplicación.',
       });
+      return false;
     }
   }, [toast]);
 
@@ -57,8 +59,8 @@ export function AccessControlPanel() {
           const stream = videoRef.current.srcObject as MediaStream;
           stream.getTracks().forEach(track => track.stop());
           videoRef.current.srcObject = null;
-          setHasCameraPermission(false);
       }
+      setHasCameraPermission(false);
   }
 
   useEffect(() => {
@@ -84,7 +86,12 @@ export function AccessControlPanel() {
     return 'current';
   };
 
-  const findUserAndSetState = async () => {
+  const findUserAndSetState = async (isCameraScan: boolean = false) => {
+    if (isCameraScan && (!isCameraScanning.current || !hasCameraPermission)) {
+        // Do not scan if camera mode is off or permission is not granted
+        return;
+    }
+
     setLoadingUsers(true);
     setFingerprintStatus('scanning');
     setCurrentUser(null);
@@ -136,34 +143,34 @@ export function AccessControlPanel() {
 
 
   const handleFingerprintScan = () => {
-    findUserAndSetState();
+    findUserAndSetState(false);
   };
 
-  const toggleCameraScan = () => {
+  const toggleCameraScan = async () => {
     if (isCameraScanning.current) {
       // Stop scanning
       isCameraScanning.current = false;
       if (scanIntervalRef.current) {
         clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
       }
       stopCamera();
       setFingerprintStatus('idle');
       setCurrentUser(null);
-      // Force re-render
-      setHasCameraPermission(false)
     } else {
       // Start scanning
-      getCameraPermission().then(() => {
+      const permissionGranted = await getCameraPermission();
+      if (permissionGranted) {
         isCameraScanning.current = true;
         toast({ title: "Escaneo automático iniciado", description: "Buscando usuarios cada 5 segundos." });
-        findUserAndSetState(); // Scan immediately
+        findUserAndSetState(true); // Scan immediately
         scanIntervalRef.current = setInterval(() => {
-          findUserAndSetState();
+          findUserAndSetState(true);
         }, 5000);
-         // Force re-render
-        setHasCameraPermission(true);
-      });
+      }
     }
+    // Force a re-render to update button text and UI state
+    setHasCameraPermission(isCameraScanning.current);
   };
   
   const handleReset = () => {
@@ -229,7 +236,7 @@ export function AccessControlPanel() {
                                 <p className="text-primary/80">Cámara Desactivada</p>
                              </div>
                         )}
-                        {hasCameraPermission && (
+                        {hasCameraPermission && isCameraScanning.current && (
                             <div className={cn("absolute inset-0 flex items-center justify-center p-4 transition-opacity", isCameraScanning.current ? "opacity-100" : "opacity-0")}>
                                <ScanFace className="w-32 h-32 text-primary/20 animate-pulse" />
                             </div>
